@@ -59,7 +59,7 @@ void setup()
   opc.ledStrip(704, 64, width/2 - (cos(angles[7])*(height/92)*32), height/1.51, height/92, angles[7], true);
   
   MidiBus.list();
-  myBus = new MidiBus(this, 1, 0);
+  myBus = new MidiBus(this, 0, 0);
   
 }
   
