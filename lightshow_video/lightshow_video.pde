@@ -2,8 +2,7 @@
 // polar-coordinate particle system. Particle size and radial distance are modulated
 // using a filtered FFT. Color is sampled from an image.
 
-import ddf.minim.analysis.*;
-import ddf.minim.*;
+import processing.video.*;
 //midi
 import themidibus.*; //Import the library
 import javax.sound.midi.MidiMessage; //Import the MidiMessage classes http://java.sun.com/j2se/1.5.0/docs/api/javax/sound/midi/MidiMessage.html
@@ -14,43 +13,44 @@ MidiBus myBus; // The MidiBus
 PrintWriter writer;
 
 OPC opc;
-PImage dot;
-PImage colors;
-Minim minim;
-AudioInput in;
-FFT fft;
-float[] fftFilter;
+Capture cam;
+int camera = 0;
+static int windowWidth = 1156;
+static int windowHeight = 650;
+static int fps = 30;
 
-int midiDevice = 1; //**set to mpk mini device number
-int midiOut = 4;
+//Camera Select
 
-float spin = 0.0015; //how fast it spins  JD default = 0.0015
-float radiansPerBucket = radians(7); //ehhh...
-float decay = 0.98;  //more = glowy, less = flashy. JD defaul: 0.98 
-float opacity = 80; // default: 15
-float minSize = 0.1; // default: 0.1
-float sizeScale = 0.7; // default: 0.7
+//For Remote Server -- **set to "localhost" if running locally**
+String server = "robotpi.local"; //should work but try the actual IP if probs
+
+//int midiDevice = 1; //**set to mpk mini device number
+//int midiOut = 4;
 
 void setup()
 {
-  size(1331, 650, P2D);
-
-  minim = new Minim(this); 
+  surface.setResizable(true);
+    
+  //SETUP CAMERA
+  String[] cameras = Capture.list();
   
-  // Small buffer size!
-  in = minim.getLineIn(Minim.STEREO, 512);
-
-  fft = new FFT(in.bufferSize(), in.sampleRate());
-  fftFilter = new float[fft.specSize()];
-
-  dot = loadImage("dot2.png");
-  colors = loadImage("colors.png");
-  
-  //load previous values
-  //loadOptions();
+  if (cameras.length == 0) {
+    println("There are no cameras available for capture.");
+    exit();
+  } else {
+    println("Available cameras:");
+    for (int i = 0; i < cameras.length; i++) {
+      println(cameras[i]);
+    }
+    
+    // The camera can be initialized directly using an 
+    // element from the array returned by list():
+    cam = new Capture(this, windowWidth, windowHeight, cameras[camera], fps);
+    cam.start();     
+  }      
   
   // Connect to the local instance of fcserver
-  opc = new OPC(this, "robotpi.local", 7890);
+  opc = new OPC(this, server, 7890);
   opc.setColorCorrection(2.6, 1.05, 1.0, 0.88);
   float[] angles = {80, 100, 110, 135, 170, 10, 45, 70};
   for (int i = 0; i < angles.length; i++){
@@ -65,35 +65,29 @@ void setup()
   opc.ledStrip(640, 64, width/2 - (cos(angles[6])*(height/92)*32), height/1.37, height/92, angles[6], true);
   opc.ledStrip(704, 64, width/2 - (cos(angles[7])*(height/92)*32), height/1.51, height/92, angles[7], true);
   
-  MidiBus.list();
-  myBus = new MidiBus(this, midiDevice, midiOut);
+  //MidiBus.list();
+  //myBus = new MidiBus(this, midiDevice, midiOut);
   
 }
-  
+public void settings() {
+  size(1156, 650, P2D);
+}  
 
 void draw()
 {
+  if (cam.available() == true) {
+    cam.read();
+  }
   background(0);
-
-  fft.forward(in.mix);
-  for (int i = 0; i < fftFilter.length; i++) {
-    fftFilter[i] = max(fftFilter[i] * decay, log(1 + fft.getBand(i)));
-  }
- 
-  for (int i = 0; i < fftFilter.length; i += 3) {   
-    color rgb = colors.get(int(map(i, 0, fftFilter.length-1, 0, colors.width-1)), colors.height/2);
-    tint(rgb, fftFilter[i] * opacity-5);
-    blendMode(ADD);
- 
-    float size = height * (minSize + sizeScale * fftFilter[i]);
-    PVector center = new PVector(width * (fftFilter[i] * 0.2), 0);
-    center.rotate(millis() * spin + i * radiansPerBucket);
-    center.add(new PVector(width * 0.5, height * 0.96));
- 
-    image(dot, center.x - size/2, center.y - size/2, size, size);
-  }
+  tint(255, 127);
+  image(cam, 0, 0);
+  // The following does the same, and is faster when just drawing the image
+  // without any additional resizing, transformations, or tint.
+  //set(0, 0, cam);
 }
 
+/*
+//MIDI CONTROL CODE
 void midiMessage(MidiMessage msg){
   int type = msg.getStatus();
   int control = msg.getMessage()[1] & 0xFF;
